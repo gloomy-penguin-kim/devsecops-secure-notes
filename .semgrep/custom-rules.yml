@@ -10,4 +10,4 @@ rules:
       Requests may contain passwords, credentials,
       or private note content.
     languages: [python]
-    severity: WARNING
+    severity: WARNING 
