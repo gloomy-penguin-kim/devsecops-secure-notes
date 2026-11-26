@@ -1,0 +1,13 @@
+rules:
+  - id: no-sensitive-request-logging
+    pattern-either:
+      - pattern: print(request.json)
+      - pattern: print(request.get_json(...))
+      - pattern: print(request.data)
+      - pattern: print(request.get_data(...))
+    message: >
+      Do not print raw HTTP request bodies.
+      Requests may contain passwords, credentials,
+      or private note content.
+    languages: [python]
+    severity: WARNING
