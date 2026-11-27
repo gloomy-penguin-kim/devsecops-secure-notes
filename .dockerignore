@@ -1,6 +1,13 @@
 .env
-.venv
+.env.*
 .git
+.venv
 __pycache__
 .pytest_cache
-instance
+tests
+*.txt
+!requirements.txt
+documents 
+sbom.json 
+documents/ 
+db.sql 
