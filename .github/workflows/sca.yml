@@ -1,0 +1,36 @@
+name: SCA
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  sca:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Generate SBOM
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            aquasec/trivy:0.76.2 fs \
+            --format cyclonedx \
+            --output /src/sbom.json /src
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom
+          path: sbom.json
+
+      - name: Scan for critical vulnerabilities
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/src:ro" \
+            aquasec/trivy:0.76.2 fs \
+            --scanners vuln \
+            --severity CRITICAL \
+            --exit-code 1 /src

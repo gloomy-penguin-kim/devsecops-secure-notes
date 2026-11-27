@@ -9,7 +9,13 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py models.py ./
+RUN groupadd --system appgroup \
+    && useradd --system --create-home \
+        --gid appgroup appuser
+
+COPY --chown=appuser:appgroup app.py models.py ./
+
+USER appuser
 
 EXPOSE 5000
 
