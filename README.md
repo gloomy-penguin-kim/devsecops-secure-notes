@@ -1,5 +1,24 @@
 #### The SecureNotes CI/CD pipeline is implemented using GitHub Actions and is triggered by pushes to the main branch and pull requests targeting main.
 
+
+```bash
+docker run --rm -d `
+    --name secure-notes-lab10 `
+    --read-only `
+    --cap-drop=ALL `
+    --tmpfs /tmp `
+    --env-file .env `
+    -p 127.0.0.1:5001:5000 `
+    secure-notes:main
+```
+
+```text
+Action	                            Commit SHA
+actions/checkout	                11bd71901bbe5b1630ceea73d27597364c9af683
+sigstore/cosign-installer	        6f9f17788090df1f26f669e9d70d6ae9567deba6
+actions/attest-build-provenance	    4d101475d8b20a2381f78447822ac1eab6504dd8
+```
+
 #### There are two parts to CI.yml: 
 - **build-test:** checksout the repository, sets up python, installs dependencies, checks python syntax with compileall and then runs the application tests 
 - **deploy:** after a successful build-test, it authenticates with AWS via OIDC credentials and uses the github-actions-deploy2 IAM role. 
@@ -34,6 +53,93 @@ The runtime image was hardened by:
 - Providing a temporary writable filesystem for Gunicorn.
 
 The hardened image reduced disk usage from 277 MB to 264 MB and vulnerability findings from 231 to 224.
+
+#### Container.yml 
+- Lab 6: 
+    - This may read the contents of the app (Secure Notes) source coude, public the image and signature to GHCR (write packages), and obtain a GitHub OIDC token for keyless signing 
+    - "Cosign cryptographically signs that immutable reference" - I signed by digest rather than signinig by tag - which is more secure.
+    - Hadolint (Haskell Dockerfile Linter) is an open-source linter that checks Dockerfiles for errors and best practices by parsing them into an abstract syntax tree (AST) and using ShellCheck to lint shell commands inside RUN instructions
+    - Trivy is the most popular open source security scanner for Vulnerability &, IaC, SBOM discovery, cloud scanning and Kubernetes security.
+- Lab 10: 
+    - Added attestations: write permission to the build job.
+    - Exported the image repository and digest as job outputs.
+    - Generated SLSA build provenance.
+    - Moved Cosign verification into a separate verify job.
+    - Added a deploy job that depends on successful verification.
+
+#### Kubernetes Lab 
+The initial kube-bench scan identified 12 automated failures. These items were corrected: 
+- Disabled profiling on the API server, controller manager, and scheduler.
+- Least privilege: Restricted kubelet service and configuration file permissions to 600.
+- Auditing and accountability: Enabled metadata-level API audit logging with log rotation, retention, and backup limits.
+
+The subsequent kube-bench scan reported only three remaining failures, representing a 75% reduction in automated failures. The remaining findings concern etcd ownership, kubelet certificate authority configuration, and service account token expiration.
+
+- Deployment: 
+```bash
+kubectl get nodes
+kubectl get deployments -n lab8
+kubectl get pods -n lab8
+kubectl logs -n lab8 deployment/secure-notes --tail=5
+```
+- Pod Security Standard enforced 
+```bash 
+kubectl get namespace lab8 --show-labels
+kubectl get events -n lab8
+kubectl get pods -n lab8
+kubectl exec -n lab8 deployment/secure-notes -- id
+```
+- Adding the pod-level and container-level securityContext configurations - k8s/Deployment.yaml 
+```bash
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+```
+- Admission Policy 
+    - Installation of Kyverno.
+    - Migration from the deprecated ClusterPolicy to ValidatingPolicy.
+    - Using CEL to require CPU and memory limits.
+    - Testing both compliant and noncompliant configurations.
+
+- Memory segment added/removed for testing of policy. 
+ ```bash
+        resources:
+        limits:
+            cpu: "500m"
+            memory: "256Mi"
+```
+- Kube-Bench findings addressed
+    - Disabled control plane profiling, 1.2.15, 1.3.2, 1.4.1
+    - Restricted kubelet file permissions, 4.1.1, 4.1.9
+    - Enabled audit logging and rotation, 1.2.16–1.2.19
+    - Disabled extended token expiration, 1.2.30
+    - Configured kubelet TLS verification, 1.2.5
+Before Totals: 
+```text
+== Summary total ==
+63 checks PASS
+12 checks FAIL
+56 checks WARN
+0 checks INFO
+```
+After Totals: 
+```text
+== Summary total ==
+75 checks PASS
+1 checks FAIL
+55 checks WARN
+0 checks INFO
+```
+
+#### Lab 10 - Supply Chain Provenance and Build Integrity  
+- The goal is to build, test, scan, sign, attest, and verify the exact same Docker image before allowing deployment.
 
 
 `python -c "import secrets; print(secrets.token_hex(32))"`
