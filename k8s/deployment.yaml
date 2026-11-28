@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secure-notes
+  namespace: lab8
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: secure-notes
+  template:
+    metadata:
+      labels:
+        app: secure-notes
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: secure-notes
+
+          image: secure-notes:after
+          
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+          imagePullPolicy: Never
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+
+          ports:
+            - containerPort: 5000
+
+          envFrom:
+            - secretRef:
+                name: secure-notes-secrets
