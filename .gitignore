@@ -5,3 +5,4 @@ __pycache__/
 instance/
 *.db
 *.pyc
+k8s/hardening/
